@@ -38,25 +38,33 @@ func (d FFProbeData) Codecs() string {
 	video := d.GetVideo()
 	videoProfile := ""
 	switch video.Profile {
-	case "High":
+	case "100", "High":
 		videoProfile = "6400"
-	case "Main":
+	case "77", "Main":
 		videoProfile = "4D40"
-	case "Baseline":
+	case "66", "Baseline":
 		videoProfile = "42E0"
 	}
-	videoCodec := fmt.Sprintf("%s.%s%d", video.CodecTag, videoProfile, int(video.Level))
+	videoCodec := fmt.Sprintf("%s.%s%d", video.CodecName, videoProfile, int(video.Level))
 	audioCodec := ""
 	audio := d.GetAudio()
 	switch audio.CodecName {
-	case "AAC":
+	case "aac":
+		// FF_PROFILE_AAC_MAIN    0
+		// FF_PROFILE_AAC_LOW     1
+		// FF_PROFILE_AAC_SSR     2
+		// FF_PROFILE_AAC_LTP     3
+		// FF_PROFILE_AAC_HE      4
+		// FF_PROFILE_AAC_HE_V2   28
+		// FF_PROFILE_AAC_LD      22
+		// FF_PROFILE_AAC_ELD     38
 		switch audio.Profile {
-		case "HE":
-			audioCodec = "mp4a.40.5"
-		case "LC":
+		case "1", "LC":
 			audioCodec = "mp4a.40.2"
+		case "4", "HE":
+			audioCodec = "mp4a.40.5"
 		}
-	case "Opus":
+	case "opus":
 		audioCodec = "opus"
 	}
 	return fmt.Sprintf("%s,%s", videoCodec, audioCodec)
