@@ -34,11 +34,11 @@ func New() *Cache {
 
 func NewWithSize(size int) *Cache {
 	c := &Cache{
-		purgeCh:    make(chan int),
-		cache:      map[int]*item.Item{},
 		size:       size,
+		cache:      map[int]*item.Item{},
 		itemMap:    map[string]*item.Item{},
-		itemEvents: make(chan bool),
+		purgeCh:    make(chan int),
+		itemEvents: make(chan bool, 1),
 	}
 
 	go c.purge()
@@ -64,7 +64,7 @@ func (c *Cache) NewItem() *item.Item {
 	select {
 	case c.itemEvents <- true:
 	default:
-		logrus.Warn("dropping item event")
+		logrus.Debug("dropping item event")
 	}
 
 	c.purgeCh <- c.oldestIndex

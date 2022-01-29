@@ -57,7 +57,7 @@ type Source struct {
 func New(info av.Info, config Config) av.WriteCloser {
 	config = config.fill()
 	s := &Source{
-		info: av.Info{},
+		info: info,
 
 		RWBaser:     av.NewRWBaser(time.Second * 10),
 		bWriter:     bytes.NewBuffer(make([]byte, 100*1024)),
@@ -128,14 +128,14 @@ func (s *Source) Write(p *av.Packet) (err error) {
 
 func (s *Source) SendPacket() (err error) {
 	defer func() {
-		s.config.Logger.Debugf("[%v] hls sender stop", s.info)
+		s.config.Logger.Debug("hls sender stop")
 		if r := recover(); r != nil {
 			s.config.Logger.Warn("hls SendPacket panic: ", r)
 			err = fmt.Errorf("panic: %v", r)
 		}
 	}()
 
-	s.config.Logger.Debugf("[%v] hls sender start", s.info)
+	s.config.Logger.Debug("hls sender start")
 	for {
 		select {
 		case <-s.closed:
