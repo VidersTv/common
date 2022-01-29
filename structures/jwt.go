@@ -12,15 +12,16 @@ type JwtTranscodePayload struct {
 	UserID          primitive.ObjectID `json:"user_id"`
 	Revision        int32              `json:"revision"`
 	TranscodeStream bool               `json:"transcode_stream"`
-	SrcPodName      string             `json:"src_pod_name"`
+	IngestPodIP     string             `json:"ingest_pod_ip"`
 	jwt.StandardClaims
 }
 
 type JwtMuxerPayload struct {
-	StreamID   primitive.ObjectID     `json:"stream_id"`
-	UserID     primitive.ObjectID     `json:"user_id"`
-	Variant    JwtMuxerPayloadVariant `json:"variant"`
-	SrcPodName string                 `json:"src_pod_name"`
+	StreamID        primitive.ObjectID     `json:"stream_id"`
+	UserID          primitive.ObjectID     `json:"user_id"`
+	Variant         JwtMuxerPayloadVariant `json:"variant"`
+	IngestPodIP     string                 `json:"ingest_pod_ip"`
+	TranscoderPodIP string                 `json:"transcoder_pod_ip"`
 	jwt.StandardClaims
 }
 
@@ -35,7 +36,6 @@ type JwtMuxerPayloadVariant struct {
 
 type JwtInternalRead struct {
 	StreamID primitive.ObjectID `json:"stream_id"`
-	PodName  string             `json:"pod_name"`
 	jwt.StandardClaims
 }
 
