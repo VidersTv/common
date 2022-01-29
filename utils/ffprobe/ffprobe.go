@@ -17,7 +17,7 @@ type FFProbeData struct {
 
 func Run(ctx context.Context, path string) (FFProbeData, error) {
 	data, err := exec.CommandContext(ctx, "ffprobe",
-		"-v", "quiet",
+		"-v", "error",
 		"-print_format", "json",
 		"-show_format",
 		"-show_streams",
