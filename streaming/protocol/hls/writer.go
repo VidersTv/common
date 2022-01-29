@@ -55,11 +55,13 @@ type Source struct {
 }
 
 func New(info av.Info, config Config) av.WriteCloser {
+	config = config.fill()
 	s := &Source{
 		info: av.Info{},
 
-		RWBaser: av.NewRWBaser(time.Second * 10),
-		bWriter: bytes.NewBuffer(make([]byte, 100*1024)),
+		RWBaser:     av.NewRWBaser(time.Second * 10),
+		bWriter:     bytes.NewBuffer(make([]byte, 100*1024)),
+		currentItem: config.Cache.NewItem(),
 
 		align: &align.Align{},
 		stat:  &status.Status{},
@@ -68,7 +70,7 @@ func New(info av.Info, config Config) av.WriteCloser {
 		demuxer:    flv.NewDemuxer(),
 		muxer:      ts.NewMuxer(),
 
-		segmentCache: cache.New(),
+		segmentCache: config.Cache,
 		tsParser:     parser.NewCodecParser(),
 
 		closed: make(chan struct{}),
@@ -169,6 +171,7 @@ func (s *Source) Close() error {
 	s.once.Do(func() {
 		close(s.closed)
 		close(s.packetQueue)
+		s.segmentCache.Stop()
 	})
 
 	return nil
@@ -184,14 +187,11 @@ func (s *Source) cut(end bool) {
 		}
 
 		src := s.btsWriter.Bytes()
-		if s.currentItem == nil {
-			s.currentItem = s.segmentCache.NewItem()
-		}
 		s.currentItem.SetDuration(s.stat.Duration())
 		_, _ = s.currentItem.Write(src)
 		if end {
 			_ = s.currentItem.Close()
-			s.currentItem = nil
+			s.currentItem = s.segmentCache.NewItem()
 		}
 	}
 	if end {

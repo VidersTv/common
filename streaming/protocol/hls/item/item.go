@@ -1,6 +1,7 @@
 package item
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -27,6 +28,10 @@ func New(name string, seqNum int) *Item {
 		data:   buffer.New(reader),
 		writer: writer,
 	}
+}
+
+func (i *Item) String() string {
+	return fmt.Sprintf("<id: %d, name: %s>", i.seqNum, i.name)
 }
 
 func (i *Item) AddWriter(writer io.WriteCloser) (string, error) {
