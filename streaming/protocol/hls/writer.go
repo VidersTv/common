@@ -165,7 +165,7 @@ func (s *Source) SendPacket() error {
 		if s.btsWriter != nil {
 			s.stat.Update(p.IsVideo, p.TimeStamp)
 			s.calcPtsDts(p.IsVideo, p.TimeStamp, uint32(compositionTime))
-			s.tsMux(p)
+			_ = s.tsMux(p)
 		}
 	}
 

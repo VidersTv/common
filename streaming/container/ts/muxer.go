@@ -96,14 +96,13 @@ func (m *Muxer) Mux(p *av.Packet, w io.Writer) error {
 		}
 		i++
 
-		//关键帧需要加pcr
 		if first && p.IsVideo && videoH.IsKeyFrame() {
 			m.tsPacket[3] |= 0x20
 			m.tsPacket[i] = 7
 			i++
 			m.tsPacket[i] = 0x50
 			i++
-			m.writePcr(m.tsPacket[0:], i, dts)
+			_ = m.writePcr(m.tsPacket[0:], i, dts)
 			i += 6
 		}
 

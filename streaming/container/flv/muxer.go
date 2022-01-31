@@ -65,9 +65,9 @@ func NewFLVWriter(app, title, url string, ctx *os.File) *FLVWriter {
 		buf:     make([]byte, headerLen),
 	}
 
-	ret.ctx.Write(flvHeader)
+	_, _ = ret.ctx.Write(flvHeader)
 	pio.PutI32BE(ret.buf[:4], 0)
-	ret.ctx.Write(ret.buf[:4])
+	_, _ = ret.ctx.Write(ret.buf[:4])
 
 	return ret
 }
