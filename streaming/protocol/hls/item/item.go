@@ -82,6 +82,6 @@ func (i *Item) Duration() time.Duration {
 }
 
 func (i *Item) Close() error {
-	logrus.Info(i)
+	logrus.Debug(i)
 	return i.writer.Close()
 }
