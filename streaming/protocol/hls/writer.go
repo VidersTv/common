@@ -188,16 +188,14 @@ func (s *Source) Close() error {
 }
 
 func (s *Source) cut(end bool) {
-	if end {
-		err := s.flushAudio()
-		if err != nil {
-			s.config.Logger.Errorf("audio flush, err=%v", err)
-		}
+	err := s.flushAudio()
+	if err != nil {
+		s.config.Logger.Errorf("audio flush, err=%v", err)
 	}
 
-	_, err := s.currentItem.Write(s.btsWriter.Bytes())
+	_, err = s.currentItem.Write(s.btsWriter.Bytes())
 	if err != nil {
-		panic(err)
+		logrus.Error("failed to write bytes to item: ", err)
 	}
 	s.btsWriter.Reset()
 
