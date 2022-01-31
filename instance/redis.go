@@ -16,5 +16,6 @@ type Redis interface {
 	Get(ctx context.Context, key string) (interface{}, error)
 	SetNX(ctx context.Context, key string, value string, ttl time.Duration) (bool, error)
 	SetEX(ctx context.Context, key string, value string, ttl time.Duration) error
+	Set(ctx context.Context, key string, value string) error
 	RawClient() *redis.Client
 }

@@ -3,12 +3,11 @@ package cache
 import "bytes"
 
 const (
-	AudioCacheMaxFrames byte = 6
-	AudioCacheLen       int  = 10 * 1024
+	AudioCacheMaxFrames = 6
+	AudioCacheLen       = 10 * 1024
 )
 
 type AudioCache struct {
-	// soundFormat byte
 	num    byte
 	offset int
 	pts    uint64

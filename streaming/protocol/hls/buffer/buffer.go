@@ -1,9 +1,11 @@
 package buffer
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/viderstv/common/utils/uid"
 )
@@ -19,19 +21,21 @@ type Buffer struct {
 	data       *bytes.Buffer
 	buf        []byte
 	closed     chan struct{}
+	name       string
 }
 
-func New(reader io.Reader) *Buffer {
-	return NewWithSize(reader, DefaultBufferSize)
+func New(reader io.Reader, name string) *Buffer {
+	return NewWithSize(reader, DefaultBufferSize, name)
 }
 
-func NewWithSize(reader io.Reader, size int) *Buffer {
+func NewWithSize(reader io.Reader, size int, name string) *Buffer {
 	b := &Buffer{
-		reader:  reader,
+		reader:  bufio.NewReaderSize(reader, 8192),
 		buf:     make([]byte, size),
 		writers: map[string]io.WriteCloser{},
 		data:    &bytes.Buffer{},
 		closed:  make(chan struct{}),
+		name:    name,
 	}
 
 	go b.copy()
@@ -45,15 +49,20 @@ func (b *Buffer) copy() {
 		arr := b.buf[:n]
 		if len(arr) != 0 {
 			_, _ = b.data.Write(arr)
-			b.writersMtx.Lock()
-			for k, v := range b.writers {
-				if _, err2 := v.Write(arr); err2 != nil || err != nil {
-					delete(b.writers, k)
-					_ = v.Close()
-				}
-			}
-			b.writersMtx.Unlock()
 		}
+		b.writersMtx.Lock()
+		for k, v := range b.writers {
+			var err2 error
+			if len(arr) != 0 {
+				_, err2 = v.Write(arr)
+			}
+
+			if err2 != nil || err != nil {
+				delete(b.writers, k)
+				_ = v.Close()
+			}
+		}
+		b.writersMtx.Unlock()
 		if err != nil {
 			close(b.closed)
 			return
@@ -64,20 +73,23 @@ func (b *Buffer) copy() {
 func (b *Buffer) AddWriter(writer io.WriteCloser) (string, error) {
 	key := uid.NewId()
 
-	b.writersMtx.Lock()
-	defer b.writersMtx.Unlock()
+	go func() {
+		<-time.After(time.Millisecond * 10)
 
-	_, err := writer.Write(b.data.Bytes())
-	if err != nil {
-		return "", err
-	}
+		b.writersMtx.Lock()
+		defer b.writersMtx.Unlock()
 
-	select {
-	case <-b.closed:
-		_ = writer.Close()
-		return "", nil
-	default:
-	}
+		_, err := writer.Write(b.data.Bytes())
+		if err != nil {
+			return
+		}
+
+		select {
+		case <-b.closed:
+			_ = writer.Close()
+		default:
+		}
+	}()
 
 	b.writers[key] = writer
 
@@ -92,4 +104,8 @@ func (b *Buffer) RemoveWriter(key string) {
 		_ = v.Close()
 		delete(b.writers, key)
 	}
+}
+
+func (b *Buffer) Size() int {
+	return b.data.Len()
 }

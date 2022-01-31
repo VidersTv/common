@@ -155,6 +155,10 @@ func (r *RedisInst) SetEX(ctx context.Context, key string, value string, ttl tim
 	return r.client.SetEX(ctx, key, value, ttl).Err()
 }
 
+func (r *RedisInst) Set(ctx context.Context, key string, value string) error {
+	return r.client.Set(ctx, key, value, 0).Err()
+}
+
 func (r *RedisInst) RawClient() *redis.Client {
 	return r.client
 }

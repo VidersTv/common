@@ -31,7 +31,7 @@ func NewMuxer() *Muxer {
 	return &Muxer{}
 }
 
-func (muxer *Muxer) Mux(p *av.Packet, w io.Writer) error {
+func (m *Muxer) Mux(p *av.Packet, w io.Writer) error {
 	first := true
 	wBytes := 0
 	pesIndex := 0
@@ -60,49 +60,50 @@ func (muxer *Muxer) Mux(p *av.Packet, w io.Writer) error {
 			break
 		}
 		if p.IsVideo {
-			muxer.videoCc++
-			if muxer.videoCc > 0xf {
-				muxer.videoCc = 0
+			m.videoCc++
+			if m.videoCc > 0xf {
+				m.videoCc = 0
 			}
 		} else {
-			muxer.audioCc++
-			if muxer.audioCc > 0xf {
-				muxer.audioCc = 0
+			m.audioCc++
+			if m.audioCc > 0xf {
+				m.audioCc = 0
 			}
 		}
 
 		i := byte(0)
 
 		//sync byte
-		muxer.tsPacket[i] = 0x47
+		m.tsPacket[i] = 0x47
 		i++
 
 		//error indicator, unit start indicator,ts priority,pid
-		muxer.tsPacket[i] = byte(pid >> 8) //pid high 5 bits
+		m.tsPacket[i] = byte(pid >> 8) //pid high 5 bits
 		if first {
-			muxer.tsPacket[i] = muxer.tsPacket[i] | 0x40 //unit start indicator
+			m.tsPacket[i] = m.tsPacket[i] | 0x40 //unit start indicator
 		}
 		i++
 
 		//pid low 8 bits
-		muxer.tsPacket[i] = byte(pid)
+		m.tsPacket[i] = byte(pid)
 		i++
 
 		//scram control, adaptation control, counter
 		if p.IsVideo {
-			muxer.tsPacket[i] = 0x10 | byte(muxer.videoCc&0x0f)
+			m.tsPacket[i] = 0x10 | byte(m.videoCc&0x0f)
 		} else {
-			muxer.tsPacket[i] = 0x10 | byte(muxer.audioCc&0x0f)
+			m.tsPacket[i] = 0x10 | byte(m.audioCc&0x0f)
 		}
 		i++
 
+		//关键帧需要加pcr
 		if first && p.IsVideo && videoH.IsKeyFrame() {
-			muxer.tsPacket[3] |= 0x20
-			muxer.tsPacket[i] = 7
+			m.tsPacket[3] |= 0x20
+			m.tsPacket[i] = 7
 			i++
-			muxer.tsPacket[i] = 0x50
+			m.tsPacket[i] = 0x50
 			i++
-			_ = muxer.writePcr(muxer.tsPacket[0:], i, dts)
+			m.writePcr(m.tsPacket[0:], i, dts)
 			i += 6
 		}
 
@@ -113,7 +114,7 @@ func (muxer *Muxer) Mux(p *av.Packet, w io.Writer) error {
 				dataLen -= (i - 4)
 			}
 		} else {
-			muxer.tsPacket[3] |= 0x20 //have adaptation
+			m.tsPacket[3] |= 0x20 //have adaptation
 			remainBytes := byte(0)
 			dataLen = byte(packetBytesLen)
 			if first {
@@ -121,7 +122,7 @@ func (muxer *Muxer) Mux(p *av.Packet, w io.Writer) error {
 			} else {
 				remainBytes = tsDefaultDataLen - dataLen
 			}
-			muxer.adaptationBufInit(muxer.tsPacket[i:], byte(remainBytes))
+			m.adaptationBufInit(m.tsPacket[i:], byte(remainBytes))
 			i += remainBytes
 		}
 		if first && i < tsPacketLen && pesHeaderLen > 0 {
@@ -129,7 +130,7 @@ func (muxer *Muxer) Mux(p *av.Packet, w io.Writer) error {
 			if pesHeaderLen <= tmpLen {
 				tmpLen = pesHeaderLen
 			}
-			copy(muxer.tsPacket[i:], pes.data[pesIndex:pesIndex+int(tmpLen)])
+			copy(m.tsPacket[i:], pes.data[pesIndex:pesIndex+int(tmpLen)])
 			i += tmpLen
 			packetBytesLen -= int(tmpLen)
 			dataLen -= tmpLen
@@ -142,12 +143,12 @@ func (muxer *Muxer) Mux(p *av.Packet, w io.Writer) error {
 			if tmpLen <= dataLen {
 				dataLen = tmpLen
 			}
-			copy(muxer.tsPacket[i:], p.Data[wBytes:wBytes+int(dataLen)])
+			copy(m.tsPacket[i:], p.Data[wBytes:wBytes+int(dataLen)])
 			wBytes += int(dataLen)
 			packetBytesLen -= int(dataLen)
 		}
 		if w != nil {
-			if _, err := w.Write(muxer.tsPacket[:]); err != nil {
+			if _, err := w.Write(m.tsPacket[0:]); err != nil {
 				return err
 			}
 		}
@@ -158,44 +159,44 @@ func (muxer *Muxer) Mux(p *av.Packet, w io.Writer) error {
 }
 
 //PAT return pat data
-func (muxer *Muxer) PAT() []byte {
+func (m *Muxer) PAT() []byte {
 	i := 0
 	remainByte := 0
 	tsHeader := []byte{0x47, 0x40, 0x00, 0x10, 0x00}
 	patHeader := []byte{0x00, 0xb0, 0x0d, 0x00, 0x01, 0xc1, 0x00, 0x00, 0x00, 0x01, 0xf0, 0x01}
 
-	if muxer.patCc > 0xf {
-		muxer.patCc = 0
+	if m.patCc > 0xf {
+		m.patCc = 0
 	}
-	tsHeader[3] |= muxer.patCc & 0x0f
-	muxer.patCc++
+	tsHeader[3] |= m.patCc & 0x0f
+	m.patCc++
 
-	copy(muxer.pat[i:], tsHeader)
+	copy(m.pat[i:], tsHeader)
 	i += len(tsHeader)
 
-	copy(muxer.pat[i:], patHeader)
+	copy(m.pat[i:], patHeader)
 	i += len(patHeader)
 
 	crc32Value := GenCrc32(patHeader)
-	muxer.pat[i] = byte(crc32Value >> 24)
+	m.pat[i] = byte(crc32Value >> 24)
 	i++
-	muxer.pat[i] = byte(crc32Value >> 16)
+	m.pat[i] = byte(crc32Value >> 16)
 	i++
-	muxer.pat[i] = byte(crc32Value >> 8)
+	m.pat[i] = byte(crc32Value >> 8)
 	i++
-	muxer.pat[i] = byte(crc32Value)
+	m.pat[i] = byte(crc32Value)
 	i++
 
 	remainByte = int(tsPacketLen - i)
 	for j := 0; j < remainByte; j++ {
-		muxer.pat[i+j] = 0xff
+		m.pat[i+j] = 0xff
 	}
 
-	return muxer.pat[0:]
+	return m.pat[0:]
 }
 
 // PMT return pmt data
-func (muxer *Muxer) PMT(soundFormat byte, hasVideo bool) []byte {
+func (m *Muxer) PMT(soundFormat byte, hasVideo bool) []byte {
 	i := int(0)
 	j := int(0)
 	var progInfo []byte
@@ -212,11 +213,11 @@ func (muxer *Muxer) PMT(soundFormat byte, hasVideo bool) []byte {
 	}
 	pmtHeader[2] = byte(len(progInfo) + 9 + 4)
 
-	if muxer.pmtCc > 0xf {
-		muxer.pmtCc = 0
+	if m.pmtCc > 0xf {
+		m.pmtCc = 0
 	}
-	tsHeader[3] |= muxer.pmtCc & 0x0f
-	muxer.pmtCc++
+	tsHeader[3] |= m.pmtCc & 0x0f
+	m.pmtCc++
 
 	if soundFormat == 2 ||
 		soundFormat == 14 {
@@ -227,34 +228,34 @@ func (muxer *Muxer) PMT(soundFormat byte, hasVideo bool) []byte {
 		}
 	}
 
-	copy(muxer.pmt[i:], tsHeader)
+	copy(m.pmt[i:], tsHeader)
 	i += len(tsHeader)
 
-	copy(muxer.pmt[i:], pmtHeader)
+	copy(m.pmt[i:], pmtHeader)
 	i += len(pmtHeader)
 
-	copy(muxer.pmt[i:], progInfo[0:])
+	copy(m.pmt[i:], progInfo[0:])
 	i += len(progInfo)
 
-	crc32Value := GenCrc32(muxer.pmt[5 : 5+len(pmtHeader)+len(progInfo)])
-	muxer.pmt[i] = byte(crc32Value >> 24)
+	crc32Value := GenCrc32(m.pmt[5 : 5+len(pmtHeader)+len(progInfo)])
+	m.pmt[i] = byte(crc32Value >> 24)
 	i++
-	muxer.pmt[i] = byte(crc32Value >> 16)
+	m.pmt[i] = byte(crc32Value >> 16)
 	i++
-	muxer.pmt[i] = byte(crc32Value >> 8)
+	m.pmt[i] = byte(crc32Value >> 8)
 	i++
-	muxer.pmt[i] = byte(crc32Value)
+	m.pmt[i] = byte(crc32Value)
 	i++
 
 	remainBytes = int(tsPacketLen - i)
 	for j = 0; j < remainBytes; j++ {
-		muxer.pmt[i+j] = 0xff
+		m.pmt[i+j] = 0xff
 	}
 
-	return muxer.pmt[0:]
+	return m.pmt[0:]
 }
 
-func (muxer *Muxer) adaptationBufInit(src []byte, remainBytes byte) {
+func (m *Muxer) adaptationBufInit(src []byte, remainBytes byte) {
 	src[0] = byte(remainBytes - 1)
 	if remainBytes == 1 {
 	} else {
@@ -265,7 +266,7 @@ func (muxer *Muxer) adaptationBufInit(src []byte, remainBytes byte) {
 	}
 }
 
-func (muxer *Muxer) writePcr(b []byte, i byte, pcr int64) error {
+func (m *Muxer) writePcr(b []byte, i byte, pcr int64) error {
 	b[i] = byte(pcr >> 25)
 	i++
 	b[i] = byte((pcr >> 17) & 0xff)

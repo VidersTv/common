@@ -1,53 +1,59 @@
 package parser
 
 import (
-	"fmt"
 	"io"
 
+	"github.com/viderstv/common/errors"
 	"github.com/viderstv/common/streaming/av"
 	"github.com/viderstv/common/streaming/parser/aac"
 	"github.com/viderstv/common/streaming/parser/h264"
-)
-
-var (
-	errNoAudio = fmt.Errorf("demuxer no audio")
+	"github.com/viderstv/common/streaming/parser/mp3"
 )
 
 type CodecParser struct {
 	aac  *aac.Parser
+	mp3  *mp3.Parser
 	h264 *h264.Parser
 }
 
 func NewCodecParser() *CodecParser {
-	return &CodecParser{
-		aac:  aac.NewParser(),
-		h264: h264.NewParser(),
-	}
+	return &CodecParser{}
 }
 
-func (p *CodecParser) SampleRate() (int, error) {
-	if p.aac == nil {
-		return 0, errNoAudio
+func (c *CodecParser) SampleRate() (int, error) {
+	if c.aac == nil && c.mp3 == nil {
+		return 0, errors.ErrNoAudio
 	}
-	return p.aac.SampleRate(), nil
+	if c.aac != nil {
+		return c.aac.SampleRate(), nil
+	}
+	return c.mp3.SampleRate(), nil
 }
 
-func (p *CodecParser) Parse(pkt *av.Packet, w io.Writer) error {
-	if pkt.IsVideo {
-		f, ok := pkt.Header.(av.VideoPacketHeader)
-		if ok {
-			if f.CodecID() == av.VIDEO_H264 {
-				return p.h264.Parse(pkt.Data, f.IsSeq(), w)
+func (c *CodecParser) Parse(p *av.Packet, w io.Writer) error {
+	if p.IsVideo {
+		f := p.Header.(av.VideoPacketHeader)
+		if f.CodecID() == av.VIDEO_H264 {
+			if c.h264 == nil {
+				c.h264 = h264.NewParser()
 			}
+			return c.h264.Parse(p.Data, f.IsSeq(), w)
 		}
+		return errors.ErrNoSupportVideoCodec
 	} else {
-		f, ok := pkt.Header.(av.AudioPacketHeader)
-		if ok {
-			if f.SoundFormat() == av.SOUND_AAC {
-				return p.aac.Parse(pkt.Data, f.AACPacketType(), w)
+		f := p.Header.(av.AudioPacketHeader)
+		switch f.SoundFormat() {
+		case av.SOUND_AAC:
+			if c.aac == nil {
+				c.aac = aac.NewParser()
 			}
+			return c.aac.Parse(p.Data, f.AACPacketType(), w)
+		case av.SOUND_MP3:
+			if c.mp3 == nil {
+				c.mp3 = mp3.NewParser()
+			}
+			return c.mp3.Parse(p.Data)
 		}
+		return errors.ErrNoSupportAudioCodec
 	}
-
-	return fmt.Errorf("invalid type")
 }

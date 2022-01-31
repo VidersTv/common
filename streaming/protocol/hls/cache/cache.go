@@ -19,6 +19,8 @@ type Cache struct {
 	cache map[int]*item.Item
 	size  int
 
+	itemCh chan *item.Item
+
 	itemMtx sync.Mutex
 	itemMap map[string]*item.Item
 
@@ -26,6 +28,7 @@ type Cache struct {
 
 	itemEvents chan bool
 	once       sync.Once
+	done       chan struct{}
 }
 
 func New() *Cache {
@@ -38,28 +41,36 @@ func NewWithSize(size int) *Cache {
 		cache:      map[int]*item.Item{},
 		itemMap:    map[string]*item.Item{},
 		purgeCh:    make(chan int),
+		itemCh:     make(chan *item.Item, 3),
 		itemEvents: make(chan bool, 1),
+		done:       make(chan struct{}),
 	}
 
 	go c.purge()
+	go c.fill()
 
 	return c
 }
 
-func (c *Cache) NewItem() *item.Item {
-	c.itemMtx.Lock()
-	defer c.itemMtx.Unlock()
+func (c *Cache) fill() {
+	for {
+		c.itemMtx.Lock()
+		item := item.New(uid.NewId(), c.currentIndex)
+		c.cache[item.SeqNum()] = item
+		c.itemMap[item.Name()] = item
+		c.itemMtx.Unlock()
+		c.currentIndex++
+		select {
+		case <-c.done:
+			return
+		case c.itemCh <- item:
+		}
 
-	old := c.cache[c.oldestIndex]
-	if old != nil {
-		delete(c.itemMap, old.Name())
 	}
+}
 
-	i := item.New(uid.NewId(), c.currentIndex)
-	c.currentIndex++
-
-	c.cache[c.currentIndex] = i
-	c.itemMap[i.Name()] = i
+func (c *Cache) NewItem() *item.Item {
+	i := <-c.itemCh
 
 	select {
 	case c.itemEvents <- true:
@@ -67,8 +78,10 @@ func (c *Cache) NewItem() *item.Item {
 		logrus.Debug("dropping item event")
 	}
 
-	c.purgeCh <- c.oldestIndex
-	c.oldestIndex++
+	if c.currentIndex > c.size {
+		c.purgeCh <- c.oldestIndex
+		c.oldestIndex++
+	}
 
 	return i
 }
@@ -88,9 +101,9 @@ func (c *Cache) Items() []*item.Item {
 	c.itemMtx.Lock()
 	defer c.itemMtx.Unlock()
 
-	list := make([]*item.Item, c.currentIndex-c.oldestIndex)
+	list := []*item.Item{}
 	for i := c.oldestIndex; i < c.currentIndex; i++ {
-		list[c.currentIndex-i] = c.cache[i]
+		list = append(list, c.cache[i])
 	}
 
 	return list
@@ -100,6 +113,8 @@ func (c *Cache) Stop() {
 	c.once.Do(func() {
 		close(c.itemEvents)
 		close(c.purgeCh)
+		close(c.done)
+		close(c.itemCh)
 	})
 }
 
@@ -121,5 +136,14 @@ func (c *Cache) purge() {
 			c.itemMtx.Unlock()
 			n = 0
 		}
+	}
+}
+
+func (c *Cache) Done() bool {
+	select {
+	case <-c.done:
+		return true
+	default:
+		return false
 	}
 }

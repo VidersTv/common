@@ -6,6 +6,13 @@ import (
 	"github.com/viderstv/common/streaming/av"
 )
 
+type FlvTag struct {
+	FType     uint8
+	DataSize  uint32
+	TimeStamp uint32
+	StreamID  uint32 // always 0
+}
+
 type mediaTag struct {
 	/*
 		SoundFormat: UB[4]
@@ -95,77 +102,78 @@ type mediaTag struct {
 }
 
 type Tag struct {
+	FlvTag FlvTag
 	mediat mediaTag
 }
 
-func (tag *Tag) SoundFormat() uint8 {
-	return tag.mediat.soundFormat
+func (t *Tag) SoundFormat() uint8 {
+	return t.mediat.soundFormat
 }
 
-func (tag *Tag) AACPacketType() uint8 {
-	return tag.mediat.aacPacketType
+func (t *Tag) AACPacketType() uint8 {
+	return t.mediat.aacPacketType
 }
 
-func (tag *Tag) IsKeyFrame() bool {
-	return tag.mediat.frameType == av.FRAME_KEY
+func (t *Tag) IsKeyFrame() bool {
+	return t.mediat.frameType == av.FRAME_KEY
 }
 
-func (tag *Tag) IsSeq() bool {
-	return tag.mediat.frameType == av.FRAME_KEY &&
-		tag.mediat.avcPacketType == av.AVC_SEQHDR
+func (t *Tag) IsSeq() bool {
+	return t.mediat.frameType == av.FRAME_KEY &&
+		t.mediat.avcPacketType == av.AVC_SEQHDR
 }
 
-func (tag *Tag) CodecID() uint8 {
-	return tag.mediat.codecID
+func (t *Tag) CodecID() uint8 {
+	return t.mediat.codecID
 }
 
-func (tag *Tag) CompositionTime() int32 {
-	return tag.mediat.compositionTime
+func (t *Tag) CompositionTime() int32 {
+	return t.mediat.compositionTime
 }
 
-// ParseMediaTagHeader, parse video, audio, tag header
-func (tag *Tag) ParseMediaTagHeader(b []byte, isVideo bool) (n int, err error) {
+// ParseMediaTagHeader, parse video, audio, t header
+func (t *Tag) ParseMediaTagHeader(b []byte, isVideo bool) (n int, err error) {
 	switch isVideo {
 	case false:
-		n, err = tag.parseAudioHeader(b)
+		n, err = t.parseAudioHeader(b)
 	case true:
-		n, err = tag.parseVideoHeader(b)
+		n, err = t.parseVideoHeader(b)
 	}
 	return
 }
 
-func (tag *Tag) parseAudioHeader(b []byte) (n int, err error) {
+func (t *Tag) parseAudioHeader(b []byte) (n int, err error) {
 	if len(b) < n+1 {
 		err = fmt.Errorf("invalid audiodata len=%d", len(b))
 		return
 	}
 	flags := b[0]
-	tag.mediat.soundFormat = flags >> 4
-	tag.mediat.soundRate = (flags >> 2) & 0x3
-	tag.mediat.soundSize = (flags >> 1) & 0x1
-	tag.mediat.soundType = flags & 0x1
+	t.mediat.soundFormat = flags >> 4
+	t.mediat.soundRate = (flags >> 2) & 0x3
+	t.mediat.soundSize = (flags >> 1) & 0x1
+	t.mediat.soundType = flags & 0x1
 	n++
-	switch tag.mediat.soundFormat {
+	switch t.mediat.soundFormat {
 	case av.SOUND_AAC:
-		tag.mediat.aacPacketType = b[1]
+		t.mediat.aacPacketType = b[1]
 		n++
 	}
 	return
 }
 
-func (tag *Tag) parseVideoHeader(b []byte) (n int, err error) {
+func (t *Tag) parseVideoHeader(b []byte) (n int, err error) {
 	if len(b) < n+5 {
 		err = fmt.Errorf("invalid videodata len=%d", len(b))
 		return
 	}
 	flags := b[0]
-	tag.mediat.frameType = flags >> 4
-	tag.mediat.codecID = flags & 0xf
+	t.mediat.frameType = flags >> 4
+	t.mediat.codecID = flags & 0xf
 	n++
-	if tag.mediat.frameType == av.FRAME_INTER || tag.mediat.frameType == av.FRAME_KEY {
-		tag.mediat.avcPacketType = b[1]
+	if t.mediat.frameType == av.FRAME_INTER || t.mediat.frameType == av.FRAME_KEY {
+		t.mediat.avcPacketType = b[1]
 		for i := 2; i < 5; i++ {
-			tag.mediat.compositionTime = tag.mediat.compositionTime<<8 + int32(b[i])
+			t.mediat.compositionTime = t.mediat.compositionTime<<8 + int32(b[i])
 		}
 		n += 4
 	}

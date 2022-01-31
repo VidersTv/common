@@ -6,4 +6,5 @@ var (
 	ErrNoSupportVideoCodec = fmt.Errorf("unsupported video codec")
 	ErrNoSupportAudioCodec = fmt.Errorf("unsupported audio codec")
 	ErrSourceClosed        = fmt.Errorf("the source is closed")
+	ErrNoAudio             = fmt.Errorf("no audio")
 )

@@ -31,6 +31,7 @@ type Source struct {
 
 	bWriter     *bytes.Buffer
 	btsWriter   *bytes.Buffer
+	tmp         *bytes.Buffer
 	currentItem *item.Item
 
 	demuxer *flv.Demuxer
@@ -61,6 +62,7 @@ func New(info av.Info, config Config) av.WriteCloser {
 
 		RWBaser:     av.NewRWBaser(time.Second * 10),
 		bWriter:     bytes.NewBuffer(make([]byte, 100*1024)),
+		tmp:         bytes.NewBuffer(nil),
 		currentItem: config.Cache.NewItem(),
 
 		align: &align.Align{},
@@ -104,6 +106,7 @@ func (s *Source) Write(p *av.Packet) (err error) {
 	}()
 
 	s.SetPreTime()
+
 	select {
 	case <-s.closed:
 		return errors.ErrSourceClosed
@@ -126,41 +129,47 @@ func (s *Source) Write(p *av.Packet) (err error) {
 	return
 }
 
-func (s *Source) SendPacket() (err error) {
+func (s *Source) SendPacket() error {
 	defer func() {
-		s.config.Logger.Debug("hls sender stop")
+		s.config.Logger.Debug("hls sender stopped")
 		if r := recover(); r != nil {
 			s.config.Logger.Warn("hls SendPacket panic: ", r)
-			err = fmt.Errorf("panic: %v", r)
 		}
 	}()
 
-	s.config.Logger.Debug("hls sender start")
-	for {
-		select {
-		case <-s.closed:
-			return errors.ErrSourceClosed
-		case p := <-s.packetQueue:
-			err := s.demuxer.Demux(p)
-			if err == flv.ErrAvcEndSEQ {
-				continue
-			} else if err != nil {
+	s.config.Logger.Debug("hls sender started")
+	for p := range s.packetQueue {
+		if p.IsMetadata {
+			continue
+		}
+
+		err := s.demuxer.Demux(p)
+		if err == flv.ErrAvcEndSEQ {
+			s.config.Logger.Warn(err)
+			continue
+		} else {
+			if err != nil {
+				s.config.Logger.Warn(err)
 				return err
 			}
-			compositionTime, isSeq, err := s.parse(p)
-			if err != nil || isSeq {
-				continue
-			}
-			if s.btsWriter != nil {
-				s.stat.Update(p.IsVideo, p.TimeStamp)
-				s.calcPtsDts(p.IsVideo, p.TimeStamp, uint32(compositionTime))
-				err = s.tsMux(p)
-				if err != nil {
-					s.config.Logger.Errorf("ts mux, err=%v", err)
-				}
-			}
+		}
+		compositionTime, isSeq, err := s.parse(p)
+		if err != nil {
+			s.config.Logger.Warning(err)
+		}
+
+		if err != nil || isSeq {
+			continue
+		}
+
+		if s.btsWriter != nil {
+			s.stat.Update(p.IsVideo, p.TimeStamp)
+			s.calcPtsDts(p.IsVideo, p.TimeStamp, uint32(compositionTime))
+			s.tsMux(p)
 		}
 	}
+
+	return nil
 }
 
 func (s *Source) Info() av.Info {
@@ -169,6 +178,7 @@ func (s *Source) Info() av.Info {
 
 func (s *Source) Close() error {
 	s.once.Do(func() {
+		s.config.Logger.Info("closed")
 		close(s.closed)
 		close(s.packetQueue)
 		s.segmentCache.Stop()
@@ -178,31 +188,35 @@ func (s *Source) Close() error {
 }
 
 func (s *Source) cut(end bool) {
-	if s.btsWriter == nil {
-		s.btsWriter = bytes.NewBuffer(nil)
-	} else {
+	if end {
 		err := s.flushAudio()
 		if err != nil {
 			s.config.Logger.Errorf("audio flush, err=%v", err)
 		}
-
-		src := s.btsWriter.Bytes()
-		s.currentItem.SetDuration(s.stat.Duration())
-		_, _ = s.currentItem.Write(src)
-		if end {
-			_ = s.currentItem.Close()
-			s.currentItem = s.segmentCache.NewItem()
-		}
 	}
+
+	_, err := s.currentItem.Write(s.btsWriter.Bytes())
+	if err != nil {
+		panic(err)
+	}
+	s.btsWriter.Reset()
+
 	if end {
-		s.btsWriter.Reset()
 		s.stat.ResetAndNew()
+		s.currentItem.SetDuration(s.stat.Duration())
+		_ = s.currentItem.Close()
+		s.currentItem = s.segmentCache.NewItem()
 		s.btsWriter.Write(s.muxer.PAT())
 		s.btsWriter.Write(s.muxer.PMT(av.SOUND_AAC, true))
 	}
 }
 
 func (s *Source) parse(p *av.Packet) (int32, bool, error) {
+	if s.btsWriter == nil {
+		s.btsWriter = bytes.NewBuffer(nil)
+		s.btsWriter.Write(s.muxer.PAT())
+		s.btsWriter.Write(s.muxer.PMT(av.SOUND_AAC, true))
+	}
 	var (
 		compositionTime int32
 		ah              av.AudioPacketHeader
@@ -215,7 +229,7 @@ func (s *Source) parse(p *av.Packet) (int32, bool, error) {
 			return compositionTime, false, errors.ErrNoSupportVideoCodec
 		}
 		compositionTime = vh.CompositionTime()
-		if vh.IsSeq() {
+		if vh.IsKeyFrame() && vh.IsSeq() {
 			return compositionTime, true, s.tsParser.Parse(p, s.bWriter)
 		}
 	} else {
@@ -235,20 +249,18 @@ func (s *Source) parse(p *av.Packet) (int32, bool, error) {
 
 	p.Data = s.bWriter.Bytes()
 
-	if p.IsVideo {
-		s.cut(s.stat.Duration() >= s.config.MinSegmentDuration && vh.IsKeyFrame())
-	}
+	s.cut(p.IsVideo && vh.IsKeyFrame() && s.stat.Duration() >= s.config.MinSegmentDuration)
 
 	return compositionTime, false, nil
 }
 
 func (s *Source) calcPtsDts(isVideo bool, ts, compositionTs uint32) {
-	s.dts = uint64(ts) * align.H264_default_hz
+	s.dts = uint64(ts) * align.H264DefaultHZ
 	if isVideo {
-		s.pts = s.dts + uint64(compositionTs)*align.H264_default_hz
+		s.pts = s.dts + uint64(compositionTs)*align.H264DefaultHZ
 	} else {
 		sampleRate, _ := s.tsParser.SampleRate()
-		s.dts = s.align.Align(s.dts, uint32(videoHZ*aacSampleLen/sampleRate))
+		s.align.Align(&s.dts, uint32(videoHZ*aacSampleLen/sampleRate))
 		s.pts = s.dts
 	}
 }
@@ -263,8 +275,9 @@ func (s *Source) muxAudio(limit byte) error {
 	}
 	_, pts, buf := s.audioCache.GetFrame()
 	return s.muxer.Mux(&av.Packet{
+		IsAudio:   true,
 		Data:      buf,
-		TimeStamp: uint32(pts / align.H264_default_hz),
+		TimeStamp: uint32(pts / align.H264DefaultHZ),
 	}, s.btsWriter)
 }
 

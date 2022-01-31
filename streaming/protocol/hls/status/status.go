@@ -5,28 +5,37 @@ import "time"
 type Status struct {
 	hasVideo       bool
 	seqId          int64
+	createdAt      time.Time
+	segBeginAt     time.Time
 	hasSetFirstTs  bool
 	firstTimestamp int64
 	lastTimestamp  int64
 }
 
-func (t *Status) Update(isVideo bool, ts uint32) {
+func NewStatus() *Status {
+	return &Status{
+		seqId:         0,
+		hasSetFirstTs: false,
+		segBeginAt:    time.Now(),
+	}
+}
+
+func (t *Status) Update(isVideo bool, timestamp uint32) {
 	if isVideo {
 		t.hasVideo = true
 	}
 	if !t.hasSetFirstTs {
 		t.hasSetFirstTs = true
-		t.firstTimestamp = int64(ts)
+		t.firstTimestamp = int64(timestamp)
 	}
-	t.lastTimestamp = int64(ts)
+	t.lastTimestamp = int64(timestamp)
 }
 
 func (t *Status) ResetAndNew() {
 	t.seqId++
 	t.hasVideo = false
+	t.createdAt = time.Now()
 	t.hasSetFirstTs = false
-	t.lastTimestamp = 0
-	t.firstTimestamp = 0
 }
 
 func (t *Status) Duration() time.Duration {

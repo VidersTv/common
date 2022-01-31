@@ -76,7 +76,7 @@ func TestH264Mp4DemuxException1(t *testing.T) {
 	w := bytes.NewBuffer(nil)
 
 	err := d.Parse(nalu, false, w)
-	at.Equal(err, errNaluBodyLenError)
+	at.Equal(err, ErrNaluBodyLen)
 }
 
 func TestH264Mp4DemuxException2(t *testing.T) {
@@ -88,5 +88,5 @@ func TestH264Mp4DemuxException2(t *testing.T) {
 	d := NewParser()
 	w := bytes.NewBuffer(nil)
 	err := d.Parse(nalu, false, w)
-	at.Equal(err, errNaluBodyLenError)
+	at.Equal(err, ErrNaluBodyLen)
 }
