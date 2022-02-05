@@ -139,6 +139,10 @@ func (c *Cache) purge() {
 	}
 }
 
+func (c *Cache) Wait() <-chan struct{} {
+	return c.done
+}
+
 func (c *Cache) Done() bool {
 	select {
 	case <-c.done:

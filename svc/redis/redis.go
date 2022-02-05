@@ -159,6 +159,10 @@ func (r *RedisInst) Set(ctx context.Context, key string, value string) error {
 	return r.client.Set(ctx, key, value, 0).Err()
 }
 
+func (r *RedisInst) Pipeline() redis.Pipeliner {
+	return r.client.Pipeline()
+}
+
 func (r *RedisInst) RawClient() *redis.Client {
 	return r.client
 }

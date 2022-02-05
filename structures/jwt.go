@@ -39,6 +39,18 @@ type JwtInternalRead struct {
 	jwt.StandardClaims
 }
 
+type JwtWatchStream struct {
+	ChannelID primitive.ObjectID `json:"channel_id"`
+	StreamID  primitive.ObjectID `json:"stream_id"`
+	UserID    primitive.ObjectID `json:"user_id"`
+	jwt.StandardClaims
+}
+
+type JwtLogin struct {
+	UserID primitive.ObjectID `json:"user_id"`
+	jwt.StandardClaims
+}
+
 func EncodeJwt(claims jwt.Claims, key string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(utils.S2B(key))

@@ -48,7 +48,10 @@ func (b *Buffer) copy() {
 		n, err := b.reader.Read(b.buf)
 		arr := b.buf[:n]
 		if len(arr) != 0 {
-			_, _ = b.data.Write(arr)
+			_, err := b.data.Write(arr)
+			if err != nil {
+				panic(err)
+			}
 		}
 		b.writersMtx.Lock()
 		for k, v := range b.writers {

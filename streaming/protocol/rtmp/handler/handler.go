@@ -151,6 +151,7 @@ func (s *Stream) Stop() {
 	if s.reader != nil {
 		_ = s.reader.Close()
 	}
+	s.StopWriters()
 }
 
 func (s *Stream) StopWriters() {

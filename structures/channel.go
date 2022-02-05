@@ -29,11 +29,13 @@ type ChannelRole int32
 const (
 	// The default role
 	ChannelRoleUser ChannelRole = iota
-	// Slightly more permissions for Chatting
-	ChannelRoleSub
+	// Can watch the channel if set to private
+	ChannelRoleViewer
 	// Extra permissions
 	ChannelRoleVIP
-	// Moderation permissions can manage chat, other users
+	// Manage Emotes, title, category
+	ChannelRoleEditor
+	// Moderation permissions can manage chat, other users, and the channel
 	ChannelRoleModerator
 	// Admin permissions can manage channel, and other moderators
 	ChannelRoleAdmin

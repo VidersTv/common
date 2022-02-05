@@ -17,5 +17,6 @@ type Redis interface {
 	SetNX(ctx context.Context, key string, value string, ttl time.Duration) (bool, error)
 	SetEX(ctx context.Context, key string, value string, ttl time.Duration) error
 	Set(ctx context.Context, key string, value string) error
+	Pipeline() redis.Pipeliner
 	RawClient() *redis.Client
 }

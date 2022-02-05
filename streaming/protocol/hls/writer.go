@@ -82,9 +82,10 @@ func New(info av.Info, config Config) av.WriteCloser {
 		config: config,
 	}
 	go func() {
+		defer s.Close()
 		err := s.SendPacket()
 		if err != nil {
-			s.Close()
+			config.Logger.Error("send pkt: ", err)
 		}
 	}()
 	return s
@@ -181,6 +182,7 @@ func (s *Source) Close() error {
 		s.config.Logger.Info("closed")
 		close(s.closed)
 		close(s.packetQueue)
+		s.cut(true)
 		s.segmentCache.Stop()
 	})
 
@@ -188,21 +190,28 @@ func (s *Source) Close() error {
 }
 
 func (s *Source) cut(end bool) {
+	_, err := s.currentItem.Write(s.btsWriter.Bytes())
+	if err != nil {
+		panic(err)
+	}
+	s.btsWriter.Reset()
+
 	if end {
 		err := s.flushAudio()
 		if err != nil {
 			s.config.Logger.Errorf("audio flush, err=%v", err)
 		}
 
-		_, err = s.currentItem.Write(s.btsWriter.Bytes())
-		if err != nil {
-			logrus.Error("failed to write bytes to item: ", err)
-		}
-		s.btsWriter.Reset()
-
-		s.stat.ResetAndNew()
 		s.currentItem.SetDuration(s.stat.Duration())
 		_ = s.currentItem.Close()
+
+		select {
+		case <-s.closed:
+			return
+		default:
+		}
+
+		s.stat.ResetAndNew()
 		s.currentItem = s.segmentCache.NewItem()
 		s.btsWriter.Write(s.muxer.PAT())
 		s.btsWriter.Write(s.muxer.PMT(av.SOUND_AAC, true))
