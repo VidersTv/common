@@ -6,14 +6,15 @@ import (
 
 // User structure is a MongoDB object in the schema "users"
 type User struct {
-	ID            primitive.ObjectID `bson:"_id,omitempty"`  // ObjectID		primary-key
-	Login         string             `bson:"login"`          // string			index(login)
-	DisplayName   string             `bson:"display_name"`   // string
-	Color         Color              `bson:"color"`          // int32
-	Role          GlobalRole         `bson:"role"`           // int32			index(role)
-	Channel       Channel            `bson:"channel"`        // Channel
-	TwitchAccount TwitchAccount      `bson:"twitch_account"` // TwitchAccount
-	Memberships   []Member           `bson:"memberships"`    // []Member
+	ID             primitive.ObjectID `bson:"_id,omitempty" json:"_id,omitempty"`               // ObjectID		primary-key
+	Login          string             `bson:"login" json:"login,omitempty"`                     // string			index(login)
+	ProfilePicture primitive.ObjectID `bson:"profile_picture" json:"profile_picture,omitempty"` // ObjectID
+	DisplayName    string             `bson:"display_name" json:"display_name,omitempty"`       // string
+	Color          Color              `bson:"color" json:"color,omitempty"`                     // int32
+	Role           GlobalRole         `bson:"role" json:"role,omitempty"`                       // int32			index(role)
+	Channel        Channel            `bson:"channel" json:"channel,omitempty"`                 // Channel
+	TwitchAccount  TwitchAccount      `bson:"twitch_account" json:"twitch_account,omitempty"`   // TwitchAccount
+	Memberships    []Member           `bson:"memberships" json:"memberships,omitempty"`         // []Member
 }
 
 func (u User) MemberRole(channelID primitive.ObjectID) ChannelRole {

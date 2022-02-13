@@ -8,19 +8,19 @@ import (
 
 // Channel structure is a MongoDB object in the object `User` which is in the schema "users"
 type Channel struct {
-	Title            string    `bson:"title"`              // string
-	Public           bool      `bson:"public"`             // boolean
-	StreamKey        string    `bson:"stream_key"`         // string
-	LastLive         time.Time `bson:"last_live"`          // time
-	TwitchRoleMirror bool      `bson:"twitch_role_mirror"` // boolean
-	Emotes           []Emote   `bson:"emotes"`             // Emote
+	Title            string    `bson:"title" json:"title,omitempty"`                           // string
+	Public           bool      `bson:"public" json:"public,omitempty"`                         // boolean
+	StreamKey        string    `bson:"stream_key" json:"stream_key,omitempty"`                 // string
+	LastLive         time.Time `bson:"last_live" json:"last_live,omitempty"`                   // time
+	TwitchRoleMirror bool      `bson:"twitch_role_mirror" json:"twitch_role_mirror,omitempty"` // boolean
+	Emotes           []Emote   `bson:"emotes" json:"emotes,omitempty"`                         // Emote
 }
 
 // Member structure is a MongoDB object in the object `User` which is in the schema "users"
 type Member struct {
-	ChannelID primitive.ObjectID `bson:"channel_id"`  // ObjectID		index(channel_id, user_id), index(channel_id, role)
-	Role      ChannelRole        `bson:"role"`        // int32			index(channel_id, role)
-	AddedByID primitive.ObjectID `bson:"added_by_id"` // ObjectID 		index(channel_id, added_by_id)
+	ChannelID primitive.ObjectID `bson:"channel_id" json:"channel_id,omitempty"`   // ObjectID		index(channel_id, user_id), index(channel_id, role)
+	Role      ChannelRole        `bson:"role" json:"role,omitempty"`               // int32			index(channel_id, role)
+	AddedByID primitive.ObjectID `bson:"added_by_id" json:"added_by_id,omitempty"` // ObjectID 		index(channel_id, added_by_id)
 }
 
 // ChannelRole is a int32 value which denotes your permissions

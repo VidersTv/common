@@ -190,17 +190,17 @@ func (s *Source) Close() error {
 }
 
 func (s *Source) cut(end bool) {
-	_, err := s.currentItem.Write(s.btsWriter.Bytes())
-	if err != nil {
-		panic(err)
-	}
-	s.btsWriter.Reset()
-
 	if end {
 		err := s.flushAudio()
 		if err != nil {
 			s.config.Logger.Errorf("audio flush, err=%v", err)
 		}
+
+		_, err = s.currentItem.Write(s.btsWriter.Bytes())
+		if err != nil {
+			panic(err)
+		}
+		s.btsWriter.Reset()
 
 		s.currentItem.SetDuration(s.stat.Duration())
 		_ = s.currentItem.Close()

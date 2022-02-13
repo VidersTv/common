@@ -4,10 +4,10 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 
 // TwitchAccount structure is a MongoDB object in the object `User` which is in the schema "users"
 type TwitchAccount struct {
-	ID             string `bson:"id"`              // string		index-unique(id)
-	Login          string `bson:"login"`           // string		index(login)
-	DisplayName    string `bson:"display_name"`    // string
-	ProfilePicture string `bson:"profile_picture"` // string
+	ID             string `bson:"id" json:"id,omitempty"`                           // string		index-unique(id)
+	Login          string `bson:"login" json:"login,omitempty"`                     // string		index(login)
+	DisplayName    string `bson:"display_name" json:"display_name,omitempty"`       // string
+	ProfilePicture string `bson:"profile_picture" json:"profile_picture,omitempty"` // string
 }
 
 // TwitchRole structure is a MongoDB object in the schema "twitch_roles"
